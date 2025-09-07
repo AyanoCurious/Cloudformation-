@@ -2,7 +2,7 @@ AWSTemplateFormatVersion: '2010-09-09'
 Description: AWS-Study Template
 
 Resources:
-  # VPC---------------------------------
+  # VPC
   MyVPC:
     Type: AWS::EC2::VPC
     Properties:
@@ -13,7 +13,7 @@ Resources:
         - Key: Name
           Value: aws-study-vpc
 
- # サブネット 
+  # サブネット 
   PublicSubnet1a:
     Type: AWS::EC2::Subnet
     Properties:
