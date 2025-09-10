@@ -1,8 +1,18 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Description: AWS-Study Template
 
+Parameters:
+  DBPassword:
+    NoEcho: true
+    Description: The database admin account password
+    Type: String
+    MinLength: 8
+    MaxLength: 41
+    AllowedPattern: ^[a-zA-Z0-9]*$
+    ConstraintDescription: must contain only alphanumeric characters.
+
 Resources:
-  # VPC---------------------------------
+  # VPC
   MyVPC:
     Type: AWS::EC2::VPC
     Properties:
@@ -13,7 +23,7 @@ Resources:
         - Key: Name
           Value: aws-study-vpc
 
- # サブネット 
+  # サブネット 
   PublicSubnet1a:
     Type: AWS::EC2::Subnet
     Properties:
@@ -162,17 +172,13 @@ Resources:
       SubnetId: !Ref RdsPrivateSubnet1
       RouteTableId: !Ref RdsRouteTable
 
-  # SecurityGroup
-  MySecurityGroup:   
+  # ALB SecurityGroup
+  ALBSecurityGroup:   
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: Allow SSH and HTTP 
+      GroupDescription: Allow HTTP and HTTPS for ALB
       VpcId: !Ref MyVPC  
       SecurityGroupIngress:
-        - IpProtocol: tcp
-          FromPort: 22
-          ToPort: 22
-          CidrIp: 0.0.0.0/0
         - IpProtocol: tcp
           FromPort: 80
           ToPort: 80
@@ -181,24 +187,45 @@ Resources:
           FromPort: 443
           ToPort: 443
           CidrIp: 0.0.0.0/0
-        - IpProtocol: tcp
-          FromPort: 8080
-          ToPort: 8080
-          CidrIp: 0.0.0.0/0
       SecurityGroupEgress:
         - IpProtocol: -1
           CidrIp: 0.0.0.0/0
 
+  EC2SecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allow SSH from my IP and HTTP/HTTPS from ALB
+      VpcId: !Ref MyVPC
+      SecurityGroupIngress:
+      # SSHは自分のIPだけ設定
+      - IpProtocol: tcp
+        FromPort: 22
+        ToPort: 22
+        CidrIp: 60.126.218.87/32
+      # HTTP/HTTPSはALBからのみ
+      - IpProtocol: tcp
+        FromPort: 80
+        ToPort: 80
+        SourceSecurityGroupId: !Ref ALBSecurityGroup
+      - IpProtocol: tcp
+        FromPort: 443
+        ToPort: 443
+        SourceSecurityGroupId: !Ref ALBSecurityGroup
+      SecurityGroupEgress:
+      - IpProtocol: -1
+        CidrIp: 0.0.0.0/0
+
+
   SecurityGroupRDS:
-   Type: AWS::EC2::SecurityGroup
-   Properties:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
      GroupDescription: AWS Study RDS
      VpcId: !Ref MyVPC
      SecurityGroupIngress:
        - IpProtocol: tcp
          FromPort: 3306
          ToPort: 3306
-         SourceSecurityGroupId: !Ref MySecurityGroup
+         SourceSecurityGroupId: !Ref EC2SecurityGroup
      SecurityGroupEgress:
        - IpProtocol: -1
          CidrIp: 0.0.0.0/0
@@ -212,7 +239,7 @@ Resources:
       SubnetId: !Ref PublicSubnet1a
       KeyName: ayano-ec2-key
       SecurityGroupIds:
-        - !Ref MySecurityGroup
+        - !Ref EC2SecurityGroup  
       Tags:
         - Key: Name
           Value: aws-study-ec2-v2
@@ -229,8 +256,8 @@ Resources:
       StorageType: gp3
       BackupRetentionPeriod: 1
       MasterUsername: root
-      MasterUserPassword: ayanordsv2
-      PreferredBackupWindow: 17:00-18:00
+      MasterUserPassword: !Ref DBPassword
+      PreferredBackupWindow: "17:00-18:00"
       PreferredMaintenanceWindow: sun:19:00-sun:20:00
       DBName: awsstudyv2
       Engine: mysql
@@ -259,7 +286,7 @@ Resources:
     Properties:
       Name: aws-study-alb-v2
       SecurityGroups:
-        - !Ref MySecurityGroup
+        - !Ref ALBSecurityGroup
       Subnets:
         - !Ref PublicSubnet1a
         - !Ref PublicSubnet1c
